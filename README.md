@@ -380,4 +380,4 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-For support, email support@energix.com or create a ticket in the platform.
+For support, email aharshilodh417@gmail.com
