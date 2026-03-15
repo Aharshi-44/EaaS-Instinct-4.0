@@ -1,0 +1,96 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth-service
+    url: http://auth-service:3001
+    routes:
+      - name: auth-routes
+        paths:
+          - /auth
+        strip_path: false
+
+  - name: user-service
+    url: http://user-service:3002
+    routes:
+      - name: user-routes
+        paths:
+          - /users
+        strip_path: false
+
+  - name: subscription-service
+    url: http://subscription-service:3003
+    routes:
+      - name: plan-routes
+        paths:
+          - /plans
+        strip_path: false
+      - name: subscription-routes
+        paths:
+          - /subscriptions
+        strip_path: false
+      - name: device-routes
+        paths:
+          - /devices
+        strip_path: false
+
+  - name: billing-service
+    url: http://billing-service:3004
+    routes:
+      - name: invoice-routes
+        paths:
+          - /invoices
+        strip_path: false
+      - name: payment-routes
+        paths:
+          - /payments
+        strip_path: false
+
+  - name: telemetry-processor
+    url: http://telemetry-processor:3006
+    routes:
+      - name: telemetry-routes
+        paths:
+          - /api/v1/telemetry
+        strip_path: false
+      - name: telemetry-health
+        paths:
+          - /telemetry/health
+        strip_path: false
+
+  - name: support-service
+    url: http://support-service:3007
+    routes:
+      - name: ticket-routes
+        paths:
+          - /tickets
+        strip_path: false
+
+  - name: discom-adapter
+    url: http://discom-adapter:3008
+    routes:
+      - name: discom-routes
+        paths:
+          - /discom
+        strip_path: false
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+      max_age: 3600
+
+  - name: rate-limiting
+    config:
+      minute: 100
+      policy: local

@@ -1,0 +1,53 @@
+# Node / JavaScript
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
+dist
+build
+.turbo
+.vite
+coverage
+
+# Env & secrets
+.env
+.env.*.local
+*.env.local
+*.env.development
+*.env.production
+*.env.test
+infra/kong/.secrets
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv
+venv
+
+# Logs
+logs
+*.log
+infra/**/*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+.history
+
+# Docker / containers
+*.pid
+
+# Misc
+*.local
+*.tmp
+tmp/
+

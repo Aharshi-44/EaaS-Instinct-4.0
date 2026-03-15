@@ -1,0 +1,336 @@
+version: '3.8'
+
+services:
+  # Databases
+  mongodb:
+    image: mongo:7
+    container_name: energix-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - energix-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: energix-timescaledb
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: energix_telemetry
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    networks:
+      - energix-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Message Queue & Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: energix-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - energix-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: energix-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - energix-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: energix-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - energix-network
+
+  # Object Storage (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: energix-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - energix-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway
+  kong:
+    image: kong:3.5
+    container_name: energix-kong
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - user-service
+      - subscription-service
+      - billing-service
+      - support-service
+      - discom-adapter
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PLUGINS: bundled
+    volumes:
+      - ./kong:/kong/declarative
+    networks:
+      - energix-network
+
+  # Backend Services
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    container_name: energix-auth-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_auth?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+    networks:
+      - energix-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build:
+      context: ..
+      dockerfile: services/user-service/Dockerfile
+    container_name: energix-user-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: 3002
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_users?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    networks:
+      - energix-network
+
+  subscription-service:
+    build:
+      context: ..
+      dockerfile: services/subscription-service/Dockerfile
+    container_name: energix-subscription-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: 3003
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_subscriptions?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    networks:
+      - energix-network
+
+  billing-service:
+    build:
+      context: ..
+      dockerfile: services/billing-service/Dockerfile
+    container_name: energix-billing-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      PORT: 3004
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_billing?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      RAZORPAY_KEY_ID: rzp_test_dummy
+      RAZORPAY_KEY_SECRET: dummy_secret
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: energix-invoices
+    networks:
+      - energix-network
+
+  telemetry-ingest:
+    build:
+      context: ../services/telemetry-ingest
+      dockerfile: Dockerfile
+    container_name: energix-telemetry-ingest
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    environment:
+      PORT: 3005
+      NODE_ENV: production
+      MQTT_BROKER_URL: mqtt://mqtt:1883
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TELEMETRY_TOPIC: energy-telemetry
+    networks:
+      - energix-network
+
+  telemetry-processor:
+    build:
+      context: ../services/telemetry-processor
+      dockerfile: Dockerfile
+    container_name: energix-telemetry-processor
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      PORT: 3006
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@timescaledb:5432/energix_telemetry
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TELEMETRY_TOPIC: energy-telemetry
+    networks:
+      - energix-network
+
+  support-service:
+    build:
+      context: ..
+      dockerfile: services/support-service/Dockerfile
+    container_name: energix-support-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: 3007
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_support?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    networks:
+      - energix-network
+
+  discom-adapter:
+    build:
+      context: ..
+      dockerfile: services/discom-adapter/Dockerfile
+    container_name: energix-discom-adapter
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      discom-simulator:
+        condition: service_started
+    environment:
+      PORT: 3008
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/energix_discom?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      DISCOM_SIMULATOR_URL: http://discom-simulator:3009
+    networks:
+      - energix-network
+
+  discom-simulator:
+    build:
+      context: ../services/discom-simulator
+      dockerfile: Dockerfile
+    container_name: energix-discom-simulator
+    restart: unless-stopped
+    environment:
+      PORT: 3009
+      NODE_ENV: production
+    networks:
+      - energix-network
+
+  # Frontend
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: energix-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - kong
+    networks:
+      - energix-network
+
+volumes:
+  mongodb_data:
+  timescaledb_data:
+  minio_data:
+
+networks:
+  energix-network:
+    driver: bridge

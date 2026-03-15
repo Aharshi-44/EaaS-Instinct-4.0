@@ -1,0 +1,25 @@
+{
+  "name": "@energix/telemetry-ingest",
+  "version": "1.0.0",
+  "description": "Telemetry ingest service - MQTT to Kafka bridge",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "kafkajs": "^2.2.4",
+    "mqtt": "^5.3.3",
+    "prom-client": "^15.1.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.4",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
