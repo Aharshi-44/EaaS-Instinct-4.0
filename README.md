@@ -1,7 +1,6 @@
 <div align="center">
 
-# ⚡ EnergiX
-
+# <img src="./docs/Logo/Logo.png" alt="Project Logo" style="width: 400px; margin-right: 0px; vertical-align: middle;"> 
 ### Energy-as-a-Service Platform
 
 **Solar · Grid · Real-time telemetry · Subscriptions & billing**
@@ -41,55 +40,50 @@
 High-level view: **React SPA** → **API gateway** → **Node/ Python services** → **databases & messaging**.
 
 ```mermaid
-flowchart TB
-  subgraph Client["Client"]
-    Web["React + Vite (apps/web)"]
-  end
-
-  subgraph Edge["Edge"]
-    Kong["Kong API Gateway"]
-    Nginx["NGINX"]
-  end
-
-  subgraph Services["Microservices"]
-    Auth["auth-service"]
-    User["user-service"]
-    Sub["subscription-service"]
-    Bill["billing-service"]
-    Sup["support-service"]
-    DisA["discom-adapter"]
-    DisS["discom-simulator"]
-    TelI["telemetry-ingest"]
-    TelP["telemetry-processor (Python)"]
-  end
-
-  subgraph Data["Data & messaging"]
-    M["MongoDB"]
-    TS["TimescaleDB"]
-    K["Kafka"]
-    MQTT["MQTT"]
-    S3["MinIO"]
-  end
-
-  Web --> Kong
-  Web --> Nginx
-  Kong --> Auth
-  Kong --> User
-  Kong --> Sub
-  Kong --> Bill
-  Kong --> Sup
-  Kong --> DisA
-  Kong --> TelI
-  TelI --> K
-  TelP --> K
-  TelP --> TS
-  Auth --> M
-  User --> M
-  Sub --> M
-  Bill --> M
-  Sup --> M
-  TelI --> MQTT
-  Bill --> S3
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT LAYER                                   │
+│  ┌─────────────┐                                                            │
+│  │  React Web  │                                                            │
+│  │  (Vite)     │                                                            │
+│  └──────┬──────┘                                                            │
+└─────────┼───────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GATEWAY LAYER                                     │
+│  ┌─────────────┐    ┌─────────────┐                                         │
+│  │    Kong     │    │   NGINX     │                                         │
+│  │  (API GW)   │    │  (Reverse)  │                                         │
+│  └─────────────┘    └─────────────┘                                         │
+└─────────┬───────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MICROSERVICES LAYER                                 │
+│                                                                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │  Auth    │ │  User    │ │   Sub    │ │  Billing │ │  Support │           │
+│  │ Service  │ │ Service  │ │ Service  │ │ Service  │ │ Service  │           │
+│  │ (Node)   │ │ (Node)   │ │ (Node)   │ │ (Node)   │ │ (Node)   │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+│                                                                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                        │
+│  │ Telemetry│ │ Telemetry│ │  DISCOM  │ │  DISCOM  │                        │
+│  │  Ingest  │ │ Processor│ │  Adapter │ │ Simulator│                        │
+│  │ (Node)   │ │ (Python) │ │ (Node)   │ │ (Node)   │                        │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          DATA & MESSAGING LAYER                             │
+│                                                                             │
+│  ┌──────────┐ ┌───────────┐  ┌───────────┐   ┌──────────┐  ┌──────────┐     │
+│  │ MongoDB  │ │TimescaleDB│  │  Kafka    │   │   MQTT   │  │  MinIO   │     │
+│  │ (Users,  │ │(Telemetry)│  │(Streaming)│   │  (IoT)   │  │   (S3)   │     │
+│  │ Billing) │ │           │  │           │   │          |  │          │     │
+│  └──────────┘ └───────────┘  └───────────┘   └──────────┘  └──────────┘     |
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 When the **backend is not running**, the web app still demonstrates **subscription, ROI, and payment** flows using **client-side demo storage** (`localStorage`).
@@ -246,33 +240,49 @@ energix/
 
 ## 🎬 Project demo
 
-<!-- Add your walkthrough or promo video below. -->
+### 🎥 Watch Full Demonstration
 
-| | |
-|:--|:--|
-| **Video** | _Add embed or link here (e.g. YouTube, Loom, or relative path to a file in the repo)._ |
+**> Below given contains the project demo !**
 
-**Example (replace with your URL):**
+<a href="./docs/Demo vid/Demo_final.mp4">
+  <img src="./docs/Logo/Logo.png" alt="Watch Demo Video" width="150">
+</a>
 
-```markdown
-[![EnergiX demo](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
-```
+*Click to play: Full walkthrough of our EnergIX.*
 
 ---
 
 ## 📸 Project in action
 
-<!-- Add screenshots under docs/screenshots/ and reference them in the table below. -->
+Here are a few screenshots showing the main features of the application.
 
-| Screen | Preview |
-|--------|---------|
-| Dashboard | _![Dashboard](docs/screenshots/dashboard.png)_ |
-| Subscription | _![Subscription](docs/screenshots/subscription.png)_ |
-| ROI calculator | _![ROI](docs/screenshots/roi-calculator.png)_ |
-| Payment | _![Payment](docs/screenshots/payment.png)_ |
-| Billing | _![Billing](docs/screenshots/billing.png)_ |
+### 1. Login
 
-_Uncomment the image lines after you add PNG/JPG files, or replace with your own paths._
+![1. Login](./docs/screenshots/Login.png)
+
+### 2. ROI
+
+![2. ROI](./docs/screenshots/ROI_Calculation.png)
+
+### 3. Subscription 
+
+![3. Subscription](./docs/screenshots/Subscription_Page.png)
+
+### 4. Payment
+
+![4. Payment](./docs/screenshots/Payment.png)
+
+### 5. Billing
+
+![5. Billing](./docs/screenshots/Billing.png)
+
+### 6. Dashboard
+
+![6. Dashboard](./docs/screenshots/Dashboard.png)
+
+### 7. Support
+
+![7. Support ](./docs/screenshots/Support.png)
 
 ---
 
