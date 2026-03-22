@@ -39,7 +39,7 @@
 
 High-level view: **React SPA** → **API gateway** → **Node/ Python services** → **databases & messaging**.
 
-```mermaid
+```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              CLIENT LAYER                                   │
 │  ┌─────────────┐                                                            │
