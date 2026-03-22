@@ -13,17 +13,19 @@ const DEFAULT_BILL = 2000
 const SOLAR_COST = 600_000
 /** Modelled share of bill saved via optimisation / smart metering (rest of story is subscription vs raw bill). */
 const EFFICIENCY_RATE = 0.12
-type PlanTier = 'Basic' | 'Pro' | 'Premium'
+
+/** Must match plan names & list prices on SubscriptionPage */
+type PlanTier = 'Basic Backup' | 'Solar+Backup' | 'Premium Green'
 
 function getRecommendedPlan(monthlyBill: number): { name: PlanTier; price: number } {
-  if (monthlyBill <= 2000) return { name: 'Basic', price: 1999 }
-  if (monthlyBill > 2000 && monthlyBill <= 4000) return { name: 'Pro', price: 2999 }
-  return { name: 'Premium', price: 4999 }
+  if (monthlyBill <= 2000) return { name: 'Basic Backup', price: 1024 }
+  if (monthlyBill > 2000 && monthlyBill <= 4000) return { name: 'Solar+Backup', price: 3071 }
+  return { name: 'Premium Green', price: 5415 }
 }
 
 /**
  * Usage-aligned subscription for savings math. When the tier list price is above the user's bill
- * (e.g. Pro ₹2,999 vs bill ₹2,200, or Premium ₹4,999 vs bill ₹4,200), comparing to full list price
+ * (e.g. Solar+Backup vs a lower bill), comparing to full list price
  * makes net savings negative — we cap the modeled cost so the estimate stays meaningful (demo UX).
  * List price is still shown separately in the UI.
  */
@@ -140,11 +142,14 @@ export function ROICalculatorPage() {
             )}
           </div>
           <CardDescription>
-            Based on EnergiX subscription tiers (Basic / Pro / Premium). Savings include an estimated{' '}
-            {Math.round(EFFICIENCY_RATE * 100)}% reduction in energy spend from optimisation and
-            monitoring. When your bill is below the tier list price (e.g. after moving to Pro or
-            Premium), the estimate uses a usage-scaled subscription cost instead of the full list
-            price so the numbers stay realistic.
+            Based on EnergiX subscription tiers on the Subscription page:{' '}
+            <span className="font-medium text-foreground">Basic Backup</span>,{' '}
+            <span className="font-medium text-foreground">Solar+Backup</span>, and{' '}
+            <span className="font-medium text-foreground">Premium Green</span>. Savings include an
+            estimated {Math.round(EFFICIENCY_RATE * 100)}% reduction in energy spend from
+            optimisation and monitoring. When your bill is below the tier list price, the estimate
+            uses a usage-scaled subscription cost instead of the full list price so the numbers stay
+            realistic.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

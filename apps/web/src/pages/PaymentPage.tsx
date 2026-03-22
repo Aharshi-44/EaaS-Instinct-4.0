@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
+import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { demoInvoiceKey, demoSubscriptionKey } from '@/lib/demoStorage'
 
@@ -19,6 +20,9 @@ export function PaymentPage() {
   const location = useLocation()
   const { user } = useAuthStore()
   const state = (location.state || {}) as LocationState
+
+  const hasPlanState =
+    Boolean(state.planId && state.planName) && typeof state.planPrice === 'number'
 
   const [cardNumber, setCardNumber] = useState('')
   const [expiry, setExpiry] = useState('')
@@ -63,11 +67,14 @@ export function PaymentPage() {
         const dueDate = periodEnd
 
         const totalAmount = typeof state.planPrice === 'number' ? state.planPrice : 999
+        const invoiceSuffix = state.planName
+          ? state.planName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9+-]/g, '')
+          : '001'
 
         if (userId) {
           const demoInvoice = {
             id: `demo-invoice-${userId}`,
-            invoiceNumber: state.planName ? `INV-DEMO-${state.planName}` : 'INV-DEMO-001',
+            invoiceNumber: state.planName ? `INV-DEMO-${invoiceSuffix}` : 'INV-DEMO-001',
             periodStart,
             periodEnd,
             dueDate,
@@ -160,6 +167,26 @@ export function PaymentPage() {
     )
   }
 
+  if (!hasPlanState) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl">No plan selected</CardTitle>
+            <CardDescription>
+              Choose a subscription plan first, then complete payment from there.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center">
+            <Button type="button" onClick={() => navigate('/subscription')}>
+              Go to Subscription
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -169,7 +196,8 @@ export function PaymentPage() {
           </div>
           <CardTitle className="text-2xl">Payment</CardTitle>
           <CardDescription>
-            Demo payment screen. Use the provided test details.
+            Demo payment for <span className="font-semibold text-foreground">{state.planName}</span> —{' '}
+            {formatCurrency(state.planPrice!)}/month. Use the test details below.
           </CardDescription>
         </CardHeader>
 

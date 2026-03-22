@@ -3,21 +3,30 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Zap } from 'lucide-react'
+import { Battery, Loader2, Sun, Zap } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { demoSubscriptionKey } from '@/lib/demoStorage'
+import { clearDemoStorageForUser, demoSubscriptionKey } from '@/lib/demoStorage'
 
 type SubscriptionPlan = {
   name: string
   price: number
-  tag: string
+  description: string
   capacity: string
   savings: string
-  features: string[]
+  audience: string
+  /** Visual emphasis (middle tier) */
+  popular?: boolean
 }
 
-const VALID_PLAN_NAMES = ['Basic', 'Pro', 'Premium'] as const
+/** Legacy localStorage values from older ROI builds — map to current plan names */
+const ROI_TO_PLAN_NAME: Record<string, SubscriptionPlan['name']> = {
+  Basic: 'Basic Backup',
+  Pro: 'Solar+Backup',
+  Premium: 'Premium Green',
+}
+
+const PLAN_NAMES = ['Basic Backup', 'Solar+Backup', 'Premium Green'] as const
 
 function readRecommendedPlan(): string | null {
   if (typeof window === 'undefined') return null
@@ -25,10 +34,18 @@ function readRecommendedPlan(): string | null {
     const raw = window.localStorage.getItem('recommendedPlan')
     if (!raw) return null
     const name = raw.trim()
-    return VALID_PLAN_NAMES.includes(name as (typeof VALID_PLAN_NAMES)[number]) ? name : null
+    if (name in ROI_TO_PLAN_NAME) return ROI_TO_PLAN_NAME[name]
+    return PLAN_NAMES.includes(name as (typeof PLAN_NAMES)[number]) ? name : null
   } catch {
     return null
   }
+}
+
+function getPlanSlug(plan: SubscriptionPlan): string {
+  return plan.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 export function SubscriptionPage() {
@@ -45,43 +62,29 @@ export function SubscriptionPage() {
 
   const plans: SubscriptionPlan[] = [
     {
-      name: 'Basic',
-      price: 1999,
-      tag: 'Starter',
-      capacity: '1 kW',
-      savings: 'Save ₹500/month',
-      features: [
-        'Basic solar access',
-        'Limited battery backup',
-        'Basic dashboard',
-        'Monthly reports',
-      ],
+      name: 'Basic Backup',
+      price: 1024,
+      description: 'Emergency power + basic solar offset',
+      capacity: '1kW solar + 1kWh battery',
+      savings: '₹500–800/month',
+      audience: '1–2 BHK homes',
     },
     {
-      name: 'Pro',
-      price: 2999,
-      tag: 'Most Popular ⭐',
-      capacity: '2–3 kW',
-      savings: 'Save ₹1200/month',
-      features: [
-        'Solar + battery hybrid',
-        'Real-time dashboard',
-        'Alerts & outage detection',
-        'Priority support',
-      ],
+      name: 'Solar+Backup',
+      price: 3071,
+      description: 'Full daytime solar + 4–6hr backup',
+      capacity: '3kW solar + 3kWh battery',
+      savings: '₹1.5–2.5k/month',
+      audience: 'Families, small shops',
+      popular: true,
     },
     {
-      name: 'Premium',
-      price: 4999,
-      tag: 'Best Value 🚀',
-      capacity: '5 kW',
-      savings: 'Save ₹2500/month',
-      features: [
-        'Full solar + battery backup',
-        'Near-zero grid dependency',
-        'AI optimization',
-        '24/7 support',
-      ],
+      name: 'Premium Green',
+      price: 5415,
+      description: 'High uptime + EV-ready + analytics',
+      capacity: '5kW solar + 10kWh battery',
+      savings: '₹3–5k/month',
+      audience: 'Villas, offices',
     },
   ]
 
@@ -132,8 +135,6 @@ export function SubscriptionPage() {
     init()
   }, [location, user?.id])
 
-  const getPlanId = (plan: SubscriptionPlan) => plan.name.toLowerCase()
-
   const handlePlanCardInteraction = (planName: string) => {
     setSelectedPlan(planName)
     if (planName !== initialRoiPlan) setShowRoiBanner(false)
@@ -142,10 +143,10 @@ export function SubscriptionPage() {
   const handleSubscribe = (plan: SubscriptionPlan) => {
     if (activePlanId) return
 
-    const planId = getPlanId(plan)
+    const planId = getPlanSlug(plan)
     setSubscribing(planId)
 
-    // Demo checkout: PaymentPage collects card + OTP, then saves subscription and returns here
+    // Demo checkout on PaymentPage — subscription + invoice are saved after OTP success
     navigate('/payment', {
       state: {
         planId,
@@ -163,7 +164,7 @@ export function SubscriptionPage() {
     const userId = user?.id
     if (userId) {
       try {
-        window.localStorage.removeItem(demoSubscriptionKey(userId))
+        clearDemoStorageForUser(userId)
       } catch {
         // ignore
       }
@@ -220,11 +221,18 @@ export function SubscriptionPage() {
       )}
 
       <div className="grid gap-6 md:grid-cols-3">
-        {plans.map((plan) => {
-          const planId = getPlanId(plan)
-          const isPro = plan.name === 'Pro'
-          const isCurrent = activePlanId === planId
-          const isHighlighted = plan.name === selectedPlan
+        {plans.map((plan, index) => {
+          const planId = getPlanSlug(plan)
+          const isPopular = plan.popular === true
+          /** User clicked / keyboard-focused card (comparison) */
+          const isSelected = plan.name === selectedPlan
+          /** ROI flow only — not the same as click selection */
+          const isRoiRecommendedCard =
+            initialRoiPlan !== null && plan.name === initialRoiPlan
+          const isCurrent = activePlanId === planId || activePlanName === plan.name
+
+          const icons = [Zap, Sun, Battery] as const
+          const HeaderIcon = icons[index % icons.length]
 
           return (
             <Card
@@ -242,70 +250,87 @@ export function SubscriptionPage() {
                 }
               }}
               className={cn(
-                'flex flex-col transition-all duration-200 hover:shadow-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                isHighlighted &&
-                  'border-2 border-blue-500 shadow-lg md:scale-105 animate-in fade-in zoom-in-95 duration-300',
-                isPro && !isHighlighted && 'border-2 border-blue-500 shadow-lg md:scale-[1.02]',
+                'flex flex-col overflow-hidden transition-all duration-300 ease-out',
+                'hover:shadow-xl hover:-translate-y-0.5',
+                'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                isPopular && 'md:scale-105 border-2 border-blue-500 shadow-lg z-[1]',
+                isSelected &&
+                  !isCurrent &&
+                  'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30 dark:ring-blue-400',
                 isCurrent && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
               )}
             >
-              <CardHeader className="space-y-3">
+              <CardHeader className="space-y-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Zap className="h-5 w-5 text-primary shrink-0" />
-                    {plan.name}
+                  <CardTitle className="flex items-center gap-2 text-xl font-bold leading-tight">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <HeaderIcon className="h-5 w-5" />
+                    </span>
+                    <span>{plan.name}</span>
                   </CardTitle>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    {isHighlighted ? (
+                    {isPopular ? (
                       <Badge className="shrink-0 bg-blue-600 text-white hover:bg-blue-600 text-[10px] font-semibold uppercase tracking-wide">
+                        Most Popular
+                      </Badge>
+                    ) : null}
+                    {isRoiRecommendedCard ? (
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px] font-semibold uppercase tracking-wide border-blue-200 bg-white/80 dark:bg-blue-950/50"
+                      >
                         Recommended for you
                       </Badge>
                     ) : null}
-                    <Badge
-                      variant={isPro ? 'default' : 'secondary'}
-                      className={cn(
-                        'shrink-0 text-[10px] font-semibold uppercase tracking-wide',
-                        isPro && !isHighlighted && 'bg-blue-600 text-white hover:bg-blue-600',
-                      )}
-                    >
-                      {plan.tag}
-                    </Badge>
                   </div>
                 </div>
+                <CardDescription className="text-sm leading-relaxed text-muted-foreground">
+                  {plan.description}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 space-y-4">
+
+              <CardContent className="flex-1 space-y-4 pt-0">
                 <div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold tracking-tight">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-bold tracking-tight text-foreground">
                       {formatCurrency(plan.price)}
                     </span>
                     <span className="text-muted-foreground text-sm font-medium">/month</span>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2">No upfront cost (₹0 capex)</p>
+                  <p className="text-xs text-muted-foreground mt-1.5">No upfront cost (₹0 capex)</p>
                 </div>
-                <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="text-muted-foreground">Capacity: </span>
-                    <span className="font-medium text-foreground">{plan.capacity}</span>
+
+                <div className="rounded-lg border border-border/80 bg-muted/40 px-3 py-2.5 text-sm">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Capacity
                   </p>
-                  <p className="font-medium text-emerald-600 dark:text-emerald-400">{plan.savings}</p>
+                  <p className="mt-0.5 font-medium text-foreground">{plan.capacity}</p>
                 </div>
-                <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="leading-snug">
-                      <span className="text-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 dark:bg-emerald-500/15">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+                    Estimated savings
+                  </p>
+                  <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                    {plan.savings}
+                  </p>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Best for: </span>
+                  {plan.audience}
+                </p>
               </CardContent>
-              <CardFooter>
+
+              <CardFooter className="pt-2">
                 {isCurrent ? (
                   <Button className="w-full" disabled>
                     Current Plan
                   </Button>
                 ) : (
                   <Button
-                    className="w-full"
+                    type="button"
+                    className="w-full transition-transform duration-200 active:scale-[0.98]"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleSubscribe(plan)
