@@ -491,7 +491,7 @@ Services typically expose:
 
 ## License
 
-MIT License — see the LICENSE file.
+MIT License — see [LICENSE.md](./LICENSE.md).
 
 ---
 
