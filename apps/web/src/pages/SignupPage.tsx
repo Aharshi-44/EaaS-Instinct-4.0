@@ -43,7 +43,7 @@ export function SignupPage() {
       })
       const { user, tokens } = response.data.data
       setAuth(user, tokens)
-      navigate('/plans')
+      navigate('/subscription')
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Signup failed')
     } finally {

@@ -25,7 +25,7 @@ export function LoginPage() {
       const response = await authApi.login({ email, password })
       const { user, tokens } = response.data.data
       setAuth(user, tokens)
-      navigate('/plans')
+      navigate('/subscription')
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Login failed')
     } finally {

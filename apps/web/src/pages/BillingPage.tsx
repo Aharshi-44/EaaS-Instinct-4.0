@@ -5,54 +5,38 @@ import { Badge } from '@/components/ui/badge'
 import { Download, CreditCard, Loader2 } from 'lucide-react'
 import { billingApi } from '@/services/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { readDemoInvoiceRaw } from '@/lib/demoStorage'
+import { useAuthStore } from '@/store/authStore'
 import { Invoice } from '@/types'
 
 export function BillingPage() {
+  const { user } = useAuthStore()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchInvoices = async () => {
+    const loadInvoices = () => {
       try {
-        const response = await billingApi.getInvoices()
-        const apiInvoices = (response.data.data || []) as Invoice[]
-        let nextInvoices = apiInvoices
-
-        try {
-          const stored = window.localStorage.getItem('energix-demo-invoice')
-          if (stored) {
-            const demoInvoice = JSON.parse(stored) as Invoice
-            const exists = nextInvoices.some((inv) => inv.id === demoInvoice.id)
-            if (!exists) {
-              nextInvoices = [demoInvoice, ...nextInvoices]
-            }
-          }
-        } catch {
-          // Ignore storage issues in demo mode
-        }
-
-        setInvoices(nextInvoices)
-      } catch (error) {
-        console.error('Error fetching invoices:', error)
-        try {
-          const stored = window.localStorage.getItem('energix-demo-invoice')
-          if (stored) {
-            const demoInvoice = JSON.parse(stored) as Invoice
-            setInvoices([demoInvoice])
-          } else {
-            setInvoices([])
-          }
-        } catch {
+        // Prototype: show only the per-user demo invoice after fake payment.
+        // We do not merge GET /invoices here — seeded or shared backend data was
+        // appearing for every new user before they purchased.
+        const stored = readDemoInvoiceRaw(user?.id)
+        if (stored) {
+          const demoInvoice = JSON.parse(stored) as Invoice
+          setInvoices([demoInvoice])
+        } else {
           setInvoices([])
         }
+      } catch {
+        setInvoices([])
       } finally {
         setLoading(false)
       }
     }
 
-    fetchInvoices()
-  }, [])
+    loadInvoices()
+  }, [user?.id])
 
   const handlePay = async (invoiceId: string) => {
     setPaying(invoiceId)
@@ -81,9 +65,8 @@ export function BillingPage() {
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpaySignature: response.razorpay_signature,
               })
-              // Refresh invoices
-              const invoicesResponse = await billingApi.getInvoices()
-              setInvoices(invoicesResponse.data.data || [])
+              const raw = readDemoInvoiceRaw(user?.id)
+              setInvoices(raw ? [JSON.parse(raw) as Invoice] : [])
             } catch (error) {
               console.error('Payment verification failed:', error)
             }

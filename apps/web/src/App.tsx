@@ -4,7 +4,8 @@ import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { PlansPage } from '@/pages/PlansPage'
+import { SubscriptionPage } from '@/pages/SubscriptionPage'
+import { ROICalculatorPage } from '@/pages/ROICalculatorPage'
 import { BillingPage } from '@/pages/BillingPage'
 import { SupportPage } from '@/pages/SupportPage'
 import { AdminPage } from '@/pages/AdminPage'
@@ -43,7 +44,9 @@ function App() {
           }
         >
           <Route index element={<DashboardPage />} />
-          <Route path="plans" element={<PlansPage />} />
+          <Route path="plans" element={<Navigate to="/subscription" replace />} />
+          <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="roi-calculator" element={<ROICalculatorPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="support" element={<SupportPage />} />
           <Route

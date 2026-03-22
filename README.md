@@ -1,6 +1,187 @@
-# EnergiX - Energy-as-a-Service Platform
+# EnergiX — Energy-as-a-Service Platform
 
 A production-grade, full-stack Energy-as-a-Service (EaaS) platform with microservices architecture, real-time telemetry, and comprehensive energy management capabilities.
+
+The **web app** (`apps/web`) is a React + TypeScript SPA using **Tailwind CSS** and **shadcn/ui**, with **Zustand** for auth state and **Recharts** for dashboard charts. It supports **demo mode** (localStorage-backed subscription, invoices, and fake checkout) when APIs are unavailable.
+
+---
+
+## How to run this project
+
+Pick **one** path below. For most people, **Option A** is enough to see the UI working.
+
+### Prerequisites
+
+| Requirement | Notes |
+|-------------|--------|
+| **Node.js** | **v20+** (LTS recommended) — required for the web app |
+| **npm** | Comes with Node |
+| **Docker** + **Docker Compose** | Optional — only for full stack / databases |
+| **Python 3.11+** | Optional — only if you run the telemetry processor locally |
+
+---
+
+### Option A — Frontend only (quickest)
+
+Use this to run the React app with **Vite**. Demo flows (subscription, payment, ROI) work with **localStorage** even if no backend is running.
+
+1. **Clone and install**
+
+   ```bash
+   git clone <repository-url>
+   cd energix/apps/web
+   npm install
+   ```
+
+2. **Start the dev server**
+
+   ```bash
+   npm run dev
+   ```
+
+3. **Open the app** in your browser at the URL Vite prints (usually **http://localhost:5173**).
+
+4. **Sign up / log in** at `/signup` or `/login`, then use the sidebar (Dashboard, Subscription, ROI Calculator, etc.).
+
+5. **Stop** the server with `Ctrl+C` in the terminal.
+
+**Other useful commands** (from `apps/web`):
+
+| Command | What it does |
+|---------|----------------|
+| `npm run build` | Typecheck + production build to `dist/` |
+| `npm run preview` | Serve the production build locally (often **http://localhost:4173**) |
+
+---
+
+### Option B — Full stack with Docker Compose
+
+Starts infrastructure and services defined in **`infra/docker-compose.yml`** (databases, Kafka, MQTT, gateways, etc.).
+
+1. **From the repo root:**
+
+   ```bash
+   cd infra
+   docker compose up -d
+   ```
+
+2. **Check containers:** `docker compose ps`
+
+3. **Logs (optional):** `docker compose logs -f`
+
+4. **Stop everything:** `docker compose down`
+
+The web UI is typically exposed through NGINX/Kong — often **http://localhost** (confirm ports in `infra/docker-compose.yml`).
+
+---
+
+### Option C — Mixed local dev (Docker infra + Node services + web app)
+
+For backend development: run **databases/messaging** in Docker, then run **individual Node services** and the **web app** on your machine.
+
+1. Start infra:
+
+   ```bash
+   cd infra
+   docker compose up -d
+   ```
+
+2. Copy **`.env.example` → `.env`** for each service you run (see [Local development](#local-development)).
+
+3. In separate terminals, install and start services you need, for example:
+
+   ```bash
+   cd services/auth-service
+   npm install
+   npm run dev
+   ```
+
+4. Run the frontend:
+
+   ```bash
+   cd apps/web
+   npm install
+   npm run dev
+   ```
+
+5. Configure the frontend API base URL if your project uses **`VITE_*`** (or similar) env vars — see `apps/web` and `src/services`.
+
+---
+
+## Web application (React)
+
+### Tech
+
+| Layer | Choice |
+|--------|--------|
+| Framework | React 18, TypeScript |
+| Build | Vite 5 |
+| Styling | Tailwind CSS, shadcn/ui (Radix), `tailwindcss-animate` |
+| Routing | React Router v6 |
+| HTTP | Axios |
+| Charts | Recharts |
+
+### Scripts (`apps/web`)
+
+```bash
+cd apps/web
+npm install
+npm run dev      # http://localhost:5173 (default Vite port)
+npm run build    # tsc + vite build
+npm run preview  # preview production build
+```
+
+### Routes
+
+| Path | Access | Description |
+|------|--------|-------------|
+| `/login` | Public | Email/password login |
+| `/signup` | Public | Registration |
+| `/` | Private (layout) | **Dashboard** — realtime energy view, charts, alerts; gated without an active subscription (demo) |
+| `/subscription` | Private | **Plans** — Basic / Pro / Premium cards, subscribe flow |
+| `/roi-calculator` | Private | **ROI Calculator** — bill slider, savings estimate, recommended tier |
+| `/billing` | Private | Billing / invoices (uses demo invoice after payment when applicable) |
+| `/support` | Private | Support |
+| `/admin` | Admin role | Admin area |
+| `/payment` | Private | **Demo checkout** (full-width layout, outside main shell) |
+
+**Notes**
+
+- There is **no** `/dashboard` route: the dashboard is the **index** route **`/`**.
+- `/plans` redirects to **`/subscription`**.
+
+### User journeys
+
+1. **ROI Calculator → Subscription**  
+   After a positive savings estimate, **Continue with this Plan** saves `recommendedPlan` (`Basic` | `Pro` | `Premium`) to `localStorage` and navigates to `/subscription`. The matching plan card is highlighted and can show a short “based on your usage” hint.
+
+2. **Subscribe → Payment → Subscription**  
+   **Subscribe** navigates to `/payment` with `location.state`: `planId`, `planName`, `planPrice`.  
+   After successful **demo** payment, the app returns to `/subscription` with the same state so the active plan can sync.  
+   **Demo payment:** card `4111 1111 1111 1111`, any future expiry, CVV `123`, OTP `1234`.
+
+3. **Dashboard access (demo)**  
+   Without an active **demo** subscription for the logged-in user, the dashboard can show a locked / limited experience until the user completes the subscription + payment flow (per-user keys below).
+
+### Client-side storage (demo / UX)
+
+Values are best-effort; failures are ignored in try/catch.
+
+| Key | Purpose |
+|-----|---------|
+| `recommendedPlan` | Plan name string from ROI; cleared after successful payment |
+| `activePlan` | Last activated plan name (set after payment) |
+| `selectedPlan` | JSON snapshot of selection (e.g. name, price, planId) |
+| `energix-demo-subscription-{userId}` | Per-user demo subscription (`status: active`, plan metadata) |
+| `energix-demo-invoice-{userId}` | Per-user demo invoice after fake payment |
+
+Helpers live in `apps/web/src/lib/demoStorage.ts`.
+
+### API usage
+
+The frontend calls backend services via configured base URLs (see service `axios` / env patterns in `apps/web/src/services`). If requests fail (e.g. stack not running), **demo fallbacks** can apply for telemetry and related views.
+
+---
 
 ## Architecture Overview
 
@@ -51,334 +232,269 @@ A production-grade, full-stack Energy-as-a-Service (EaaS) platform with microser
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## Tech Stack
 
 ### Frontend
-- React 18 + TypeScript
-- Tailwind CSS + shadcn/ui
-- Vite
-- Recharts for data visualization
-- Zustand for state management
-- Axios for API calls
 
-### Backend Services
-- **Node.js/TypeScript**: Auth, User, Subscription, Billing, Support, DISCOM services
-- **Python/FastAPI**: Telemetry processor
-- **MQTT**: Eclipse Mosquitto for IoT messaging
-- **Kafka**: Event streaming platform
+- React 18 + TypeScript  
+- Tailwind CSS + shadcn/ui  
+- Vite  
+- Recharts (dashboard charts)  
+- Zustand (auth)  
+- Axios  
 
-### Data Layer
-- **MongoDB**: Document store for users, plans, subscriptions, invoices, tickets
-- **TimescaleDB**: Time-series database for energy telemetry
-- **MinIO**: S3-compatible object storage for invoices and reports
+### Backend services
+
+- **Node.js / TypeScript**: Auth, User, Subscription, Billing, Support, DISCOM services  
+- **Python / FastAPI**: Telemetry processor  
+- **MQTT**: Eclipse Mosquitto for IoT messaging  
+- **Kafka**: Event streaming  
+
+### Data layer
+
+- **MongoDB**: Users, plans, subscriptions, invoices, tickets  
+- **TimescaleDB**: Energy telemetry time-series  
+- **MinIO**: S3-compatible storage for invoices and reports  
 
 ### Infrastructure
-- **Docker & Docker Compose**: Containerization
-- **Kong**: API Gateway
-- **NGINX**: Reverse proxy
-- **Kubernetes**: Container orchestration (manifests included)
 
-## Quick Start
+- **Docker & Docker Compose**  
+- **Kong** API Gateway  
+- **NGINX** reverse proxy  
+- **Kubernetes** manifests (`infra/k8s/`)  
 
-### Prerequisites
-- Git
-- Docker 24.0+
-- Docker Compose 2.20+ (or `docker compose` CLI)
-- Node.js 20+ and npm (for frontend & Node services)
-- Python 3.11+ and `pip` (for the telemetry processor)
+---
 
-### Clone the repository
+## Quick reference (URLs & ports)
 
-```bash
+Step-by-step run instructions are in **[How to run this project](#how-to-run-this-project)** above.
 
-git clone <repository-url>
-cd energix
-```
-
-### Option A: Run full stack with Docker Compose
-
-This is the easiest way to bring up all backing services (MongoDB, TimescaleDB, Kafka, MQTT, MinIO, Node microservices, Kong, NGINX, etc.).
-
-```bash
-cd infra
-
-# Start everything in the background
-docker-compose up -d
-
-# Tail logs (optional)
-docker-compose logs -f
-
-# Stop and remove containers
-docker-compose down
-```
-
-Once up, the main web app is typically exposed via NGINX/Kong at:
-
-- `http://localhost` → EnergiX web UI
-
-### Access Points
+When **Docker Compose** (`infra`) is up, common endpoints include:
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Web App | http://localhost | Frontend application |
+| Web app (via compose) | http://localhost | Often NGINX/Kong front door — check `infra/docker-compose.yml` |
 | Kong Gateway | http://localhost:8000 | API Gateway |
 | Kong Admin | http://localhost:8001 | Kong Admin API |
 | MongoDB | localhost:27017 | Database |
-| TimescaleDB | localhost:5432 | Time-series database |
-| Kafka | localhost:9092 | Message broker |
+| TimescaleDB | localhost:5432 | Time-series DB |
+| Kafka | localhost:9092 | Broker |
 | MQTT | localhost:1883 | IoT messaging |
 | MinIO | http://localhost:9000 | Object storage |
 | MinIO Console | http://localhost:9002 | MinIO UI |
 
-## Project Structure
+**Vite dev server** (Option A): **http://localhost:5173** (or the port shown in the terminal).
+
+---
+
+## Project structure
 
 ```
 energix/
 ├── apps/
-│   └── web/                 # React frontend
+│   └── web/                    # React + Vite frontend
 ├── services/
-│   ├── auth-service/        # JWT authentication
-│   ├── user-service/        # User management
-│   ├── subscription-service/# Plans & subscriptions
-│   ├── billing-service/     # Invoicing & payments
-│   ├── telemetry-ingest/    # MQTT to Kafka bridge
-│   ├── telemetry-processor/ # Kafka to TimescaleDB
-│   ├── support-service/     # Ticketing system
-│   ├── discom-adapter/      # DISCOM integration
-│   └── discom-simulator/    # Mock DISCOM service
+│   ├── auth-service/           # JWT authentication
+│   ├── user-service/           # User management
+│   ├── subscription-service/   # Plans & subscriptions
+│   ├── billing-service/        # Invoicing & payments
+│   ├── telemetry-ingest/       # MQTT → Kafka bridge
+│   ├── telemetry-processor/    # Kafka → TimescaleDB (Python)
+│   ├── support-service/        # Ticketing
+│   ├── discom-adapter/         # DISCOM integration
+│   └── discom-simulator/       # Mock DISCOM
 ├── packages/
-│   └── shared-types/        # Common TypeScript types
+│   └── shared-types/           # Shared TypeScript types
 ├── infra/
-│   ├── docker-compose.yml   # Local orchestration
-│   ├── kong/                # Kong configuration
-│   ├── nginx/               # NGINX configuration
-│   ├── k8s/                 # Kubernetes manifests
-│   └── terraform/           # Infrastructure as Code
+│   ├── docker-compose.yml      # Local orchestration
+│   ├── kong/
+│   ├── nginx/
+│   ├── k8s/
+│   └── terraform/
 ├── scripts/
-│   ├── device-simulator/    # IoT device simulator
-│   └── seed-data/           # Database seeding
+│   ├── device-simulator/
+│   └── seed-data/
 └── docs/
-    ├── architecture.md      # Architecture documentation
-    ├── api-spec.md          # API specifications
-    └── demo-flow.md         # Demo walkthrough
+    ├── architecture.md
+    ├── api-spec.md
+    └── demo-flow.md
 ```
+
+---
 
 ## Authentication
 
-The platform uses JWT-based authentication:
-- **Access Token**: Short-lived (15 minutes)
-- **Refresh Token**: HTTP-only cookie (7 days)
-- **Password Hashing**: bcrypt
-- **OAuth**: Google Sign-In supported
+JWT-based authentication:
 
-### Auth Endpoints
+- **Access token**: short-lived (~15 minutes)  
+- **Refresh token**: HTTP-only cookie (~7 days)  
+- **Password hashing**: bcrypt  
+- **OAuth**: Google Sign-In (where configured)  
+
+### Auth endpoints (reference)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | /auth/signup | Email/password registration |
-| POST | /auth/login | Email/password login |
-| POST | /auth/google | Google OAuth login |
+| POST | /auth/signup | Registration |
+| POST | /auth/login | Login |
+| POST | /auth/google | Google OAuth |
 | POST | /auth/refresh | Refresh access token |
-| POST | /auth/logout | Logout user |
+| POST | /auth/logout | Logout |
 
-## API Documentation
+---
 
-### Core Services
+## API documentation (services)
 
-| Service | Port | Base Path |
-|---------|------|-----------|
-| Auth Service | 3001 | /auth |
-| User Service | 3002 | /users |
-| Subscription Service | 3003 | /plans, /subscriptions, /devices |
-| Billing Service | 3004 | /invoices, /payments |
-| Telemetry Ingest | 3005 | - |
+| Service | Port | Base path (typical) |
+|---------|------|---------------------|
+| Auth | 3001 | /auth |
+| User | 3002 | /users |
+| Subscription | 3003 | /plans, /subscriptions, /devices |
+| Billing | 3004 | /invoices, /payments |
+| Telemetry Ingest | 3005 | — |
 | Telemetry Processor | 3006 | /api/v1/telemetry |
-| Support Service | 3007 | /tickets |
+| Support | 3007 | /tickets |
 | DISCOM Adapter | 3008 | /discom |
 | DISCOM Simulator | 3009 | /api |
 
-## Telemetry Pipeline
+See `docs/api-spec.md` for details.
+
+---
+
+## Telemetry pipeline
 
 ```
 Device Simulator → MQTT → Kafka → FastAPI Processor → TimescaleDB
 ```
 
-The telemetry pipeline processes real-time energy data:
-1. **Device Simulator** publishes metrics to MQTT topics
-2. **Telemetry Ingest** service forwards MQTT messages to Kafka
-3. **Telemetry Processor** (FastAPI) consumes from Kafka and stores in TimescaleDB
-4. **Dashboard** queries aggregated data for visualization
- 
-## Local Development
+1. Device simulator publishes to MQTT  
+2. Telemetry ingest forwards to Kafka  
+3. Telemetry processor writes to TimescaleDB  
+4. Dashboard queries aggregated data (with demo/mock fallbacks when offline)  
+
+---
+
+## Local development
+
+> **First time?** Start with **[How to run this project](#how-to-run-this-project)** (Option A or B). This section is for **per-service** env files and advanced setups.
 
 ### 1. Environment variables
 
-Each backend service ships with an `.env.example`. Copy and adjust them before running locally:
+Each backend service may ship `.env.example`. Copy and tune before running:
 
 ```bash
-# Auth service
 cp services/auth-service/.env.example services/auth-service/.env
-
-# User, Subscription, Billing, Support, DISCOM, Telemetry, etc.
-cp services/user-service/.env.example services/user-service/.env
-cp services/subscription-service/.env.example services/subscription-service/.env
-cp services/billing-service/.env.example services/billing-service/.env
-cp services/support-service/.env.example services/support-service/.env
-cp services/discom-adapter/.env.example services/discom-adapter/.env
-cp services/discom-simulator/.env.example services/discom-simulator/.env
-cp services/telemetry-ingest/.env.example services/telemetry-ingest/.env
-cp services/telemetry-processor/.env.example services/telemetry-processor/.env
+# Repeat for user, subscription, billing, support, DISCOM, telemetry, etc.
 ```
 
-Key things to verify in each `.env`:
-- MongoDB / TimescaleDB connection strings
-- Kafka / MQTT bootstrap URLs
-- JWT secrets and token expiry
-- External service URLs (Kong, DISCOM simulator, etc.)
-
-> For a quick prototype/demo, the default `.env.example` values are usually enough when running via `infra/docker-compose.yml`.
+Verify: MongoDB/TimescaleDB URLs, Kafka/MQTT, JWT secrets, gateway URLs.
 
 ### 2. Install dependencies
 
-Install dependencies for the services you want to run locally:
-
 ```bash
-# Example: auth service
-cd services/auth-service
-npm install
-
-# Example: user service
-cd ../user-service
-npm install
-
-# Example: React web app
-cd ../../apps/web
-npm install
+cd services/auth-service && npm install
+cd ../../apps/web && npm install
 ```
 
-For the Python telemetry processor:
+Python telemetry processor:
 
 ```bash
 cd services/telemetry-processor
 python -m venv .venv
-source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Run services locally
-
-You can run individual services in dev mode while still using Docker for infra (MongoDB, TimescaleDB, Kafka, etc.).
+### 3. Run services
 
 ```bash
-# In one terminal, bring up infra (databases, Kafka, etc.)
-cd infra
-docker-compose up -d
+cd infra && docker compose up -d    # databases, Kafka, etc.
 
-# In another terminal, run a Node service in dev mode
-cd services/auth-service
-npm run dev
-
-# Example: run the React web app (Vite dev server)
-cd apps/web
-npm run dev
-# Then open http://localhost:5173
+cd services/auth-service && npm run dev
+cd apps/web && npm run dev
 ```
 
-To run the telemetry processor locally:
+Telemetry processor:
 
 ```bash
 cd services/telemetry-processor
-source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 uvicorn app.main:app --reload --port 3006
 ```
 
-## Checks & Quality Gates
+---
 
-### Linting & Tests for Node.js services
+## Checks & quality
 
-Most Node-based services (e.g. `auth-service`, `user-service`, `subscription-service`, etc.) expose common scripts:
+### Node services
 
 ```bash
 cd services/auth-service
-
-# Run unit tests
-npm test
-
-# Run lint checks
-npm run lint
-```
-
-Repeat similarly for other services:
-
-```bash
-cd services/user-service
 npm test
 npm run lint
 ```
 
-### Frontend checks (React web app)
+### Frontend
 
 ```bash
 cd apps/web
-
-# Typecheck + production build
-npm run build
-
-# Preview the production build
+npm run build    # TypeScript + Vite production build
 npm run preview
 ```
 
-### Python service checks
-
-For the telemetry processor, you can at minimum verify that dependencies and the app start correctly:
+### Python
 
 ```bash
 cd services/telemetry-processor
-source .venv/bin/activate       # On Windows: .venv\Scripts\activate
-uvicorn app.main:app --reload --port 3006
+# uvicorn ... ; add pytest when tests exist
 ```
 
-If you add tests (e.g. with `pytest`), run:
-
-```bash
-pytest
-```
+---
 
 ## Deployment
 
-### Docker Compose (Production)
+### Docker Compose
 
 ```bash
 cd infra
-docker-compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml up -d
 ```
 
 ### Kubernetes
 
 ```bash
-# Apply Kubernetes manifests
 kubectl apply -f infra/k8s/
 ```
 
-## Monitoring & Observability
+---
 
-Each service exposes:
-- **Health endpoints**: `/health`, `/health/ready`, `/health/live`
-- **Prometheus metrics**: `/metrics`
-- **Structured logging**: JSON format
+## Monitoring & observability
+
+Services typically expose:
+
+- Health: `/health`, `/health/ready`, `/health/live`  
+- Metrics: `/metrics` (Prometheus)  
+- Structured JSON logs  
+
+---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+1. Fork the repository  
+2. Create a feature branch  
+3. Commit your changes  
+4. Push and open a Pull Request  
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License — see the LICENSE file.
+
+---
 
 ## Support
 
-For support, email aharshilodh417@gmail.com
+For support: **aharshilodh417@gmail.com**

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { User, AuthTokens } from '@/types'
+import { clearDemoStorageForUser } from '@/lib/demoStorage'
 
 interface AuthState {
   user: User | null
@@ -13,12 +14,18 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       tokens: null,
       isAuthenticated: false,
       setAuth: (user, tokens) => set({ user, tokens, isAuthenticated: true }),
-      clearAuth: () => set({ user: null, tokens: null, isAuthenticated: false }),
+      clearAuth: () => {
+        const userId = get().user?.id
+        if (userId && typeof window !== 'undefined') {
+          clearDemoStorageForUser(userId)
+        }
+        set({ user: null, tokens: null, isAuthenticated: false })
+      },
       updateUser: (userData) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null,

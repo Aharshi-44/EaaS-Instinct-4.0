@@ -22,6 +22,7 @@ import {
 import {
   LayoutDashboard,
   Zap,
+  Calculator,
   CreditCard,
   HelpCircle,
   LogOut,
@@ -71,7 +72,8 @@ export function Layout() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/plans', label: 'Plans', icon: Zap },
+    { path: '/subscription', label: 'Subscription', icon: Zap },
+    { path: '/roi-calculator', label: 'ROI Calculator', icon: Calculator },
     { path: '/billing', label: 'Billing', icon: CreditCard },
     { path: '/support', label: 'Support', icon: HelpCircle },
   ]

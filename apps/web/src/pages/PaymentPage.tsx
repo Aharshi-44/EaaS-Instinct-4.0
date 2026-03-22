@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
+import { demoInvoiceKey, demoSubscriptionKey } from '@/lib/demoStorage'
 
 interface LocationState {
   planId?: string
@@ -15,6 +17,7 @@ interface LocationState {
 export function PaymentPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuthStore()
   const state = (location.state || {}) as LocationState
 
   const [cardNumber, setCardNumber] = useState('')
@@ -52,6 +55,7 @@ export function PaymentPage() {
 
     setLoading(true)
     setTimeout(() => {
+      const userId = user?.id
       try {
         const now = new Date()
         const periodStart = now.toISOString()
@@ -60,29 +64,48 @@ export function PaymentPage() {
 
         const totalAmount = typeof state.planPrice === 'number' ? state.planPrice : 999
 
-        const demoInvoice = {
-          id: 'demo-invoice-001',
-          invoiceNumber: state.planName ? `INV-DEMO-${state.planName}` : 'INV-DEMO-001',
-          periodStart,
-          periodEnd,
-          dueDate,
-          status: 'paid',
-          totalAmount,
-          amountDue: 0,
-          pdfUrl: undefined,
+        if (userId) {
+          const demoInvoice = {
+            id: `demo-invoice-${userId}`,
+            invoiceNumber: state.planName ? `INV-DEMO-${state.planName}` : 'INV-DEMO-001',
+            periodStart,
+            periodEnd,
+            dueDate,
+            status: 'paid' as const,
+            totalAmount,
+            amountDue: 0,
+            pdfUrl: undefined,
+          }
+
+          window.localStorage.setItem(demoInvoiceKey(userId), JSON.stringify(demoInvoice))
+
+          if (state.planId && state.planName && typeof state.planPrice === 'number') {
+            const demoSubscription = {
+              planId: state.planId,
+              planName: state.planName,
+              planPrice: state.planPrice,
+              status: 'active',
+              activatedAt: now.toISOString(),
+            }
+            window.localStorage.setItem(demoSubscriptionKey(userId), JSON.stringify(demoSubscription))
+          }
         }
 
-        window.localStorage.setItem('energix-demo-invoice', JSON.stringify(demoInvoice))
-
-        if (state.planId && state.planName && typeof state.planPrice === 'number') {
-          const demoSubscription = {
-            planId: state.planId,
-            planName: state.planName,
-            planPrice: state.planPrice,
-            status: 'active',
-            activatedAt: now.toISOString(),
+        try {
+          window.localStorage.removeItem('recommendedPlan')
+          if (state.planName) {
+            window.localStorage.setItem('activePlan', state.planName)
+            window.localStorage.setItem(
+              'selectedPlan',
+              JSON.stringify({
+                name: state.planName,
+                price: state.planPrice ?? 0,
+                planId: state.planId,
+              }),
+            )
           }
-          window.localStorage.setItem('energix-demo-subscription', JSON.stringify(demoSubscription))
+        } catch {
+          // ignore
         }
       } catch {
         // Ignore storage errors in demo mode
@@ -91,7 +114,7 @@ export function PaymentPage() {
       setLoading(false)
       setStep('success')
       setTimeout(() => {
-        navigate('/plans', {
+        navigate('/subscription', {
           state: {
             planId: state.planId,
             planName: state.planName,
@@ -120,7 +143,7 @@ export function PaymentPage() {
           <CardFooter className="flex justify-center">
             <Button
               onClick={() =>
-                navigate('/plans', {
+                navigate('/subscription', {
                   state: {
                     planId: state.planId,
                     planName: state.planName,
@@ -129,7 +152,7 @@ export function PaymentPage() {
                 })
               }
             >
-              Back to Plans
+              Back to Subscription
             </Button>
           </CardFooter>
         </Card>
